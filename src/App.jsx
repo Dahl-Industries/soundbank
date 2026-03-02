@@ -52,7 +52,7 @@ function QrCard({ active, onOpen, onClose, onVisit }) {
         <motion.button
           key="qr-thumb"
           onClick={onOpen}
-          className="fixed bottom-20 right-20 z-30 flex h-[11.5rem] w-[11.5rem] items-center justify-center rounded-[26px] border border-white/[0.08] bg-[#1a1a1a]/90 p-2.5 shadow-[0_20px_60px_rgba(0,0,0,0.7)] backdrop-blur-md"
+          className="fixed bottom-6 right-4 z-30 flex h-[7rem] w-[7rem] items-center justify-center rounded-[22px] border border-white/[0.08] bg-[#1a1a1a]/90 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.7)] backdrop-blur-md md:bottom-20 md:right-20 md:h-[11.5rem] md:w-[11.5rem] md:rounded-[26px] md:p-2.5"
           initial={{ opacity: 0, scale: 0.92, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 12 }}
@@ -93,7 +93,7 @@ function QrCard({ active, onOpen, onClose, onVisit }) {
                 e.stopPropagation()
                 onVisit()
               }}
-              className="flex h-[17rem] w-[17rem] cursor-pointer items-center justify-center rounded-[22px] border border-white/[0.08] bg-[#1a1a1a]/90 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop-blur-md"
+              className="flex h-[14rem] w-[14rem] cursor-pointer items-center justify-center rounded-[20px] border border-white/[0.08] bg-[#1a1a1a]/90 p-3.5 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop-blur-md md:h-[17rem] md:w-[17rem] md:rounded-[22px] md:p-4"
             >
               <img
                 src={QR_WHITE}
@@ -117,7 +117,7 @@ export default function App() {
   const [qrOpen, setQrOpen] = useState(false)
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-black font-soundbank text-white">
+    <main className="relative h-[100dvh] w-screen overflow-hidden bg-black font-soundbank text-white">
       <div className="absolute inset-0 z-0 bg-black" />
 
       <div className="absolute inset-0 z-[5]">
@@ -129,7 +129,7 @@ export default function App() {
       {!qrOpen && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-4">
           <div className="text-center">
-            <h1 className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
+            <h1 className="text-[2rem] font-semibold tracking-tight text-white md:text-5xl">
               Soundbank™
             </h1>
           </div>

@@ -8,7 +8,10 @@ import * as THREE from 'three'
 const PARTICLE_COUNT = 80000
 const ASSEMBLY_SECONDS = 2.5
 const LOGO_PATH = '/sb-logo.png'
-const CAMERA_Z = 7.4
+const CAMERA_FOV = 48
+const DESKTOP_CAMERA_Z = 7.4
+const MOBILE_VIEWPORT_MAX_WIDTH = 820
+const MOBILE_TARGET_WORLD_WIDTH = 9.6
 const AUTO_SPIN_SPEED = 0.055
 const TWO_PI = Math.PI * 2
 
@@ -26,6 +29,22 @@ const mixColor = (a, b, t) => [
   lerp(a[1], b[1], t),
   lerp(a[2], b[2], t),
 ]
+
+function isMobilePortraitViewport(width, height) {
+  return width <= MOBILE_VIEWPORT_MAX_WIDTH && height > width
+}
+
+function getRestCameraZ(width, height) {
+  if (!isMobilePortraitViewport(width, height)) {
+    return DESKTOP_CAMERA_Z
+  }
+
+  const aspect = clamp(width / Math.max(height, 1), 0.36, 1)
+  const fovRadians = THREE.MathUtils.degToRad(CAMERA_FOV)
+  const requiredZ = MOBILE_TARGET_WORLD_WIDTH / (2 * Math.tan(fovRadians * 0.5) * aspect)
+
+  return clamp(requiredZ, DESKTOP_CAMERA_Z, 24)
+}
 
 function randomUnitVector() {
   const theta = Math.random() * Math.PI * 2
@@ -285,7 +304,7 @@ function buildParticleData(maskData, particleCount) {
   }
 }
 
-function ParticleCloud({ isDraggingRef }) {
+function ParticleCloud({ isDraggingRef, pointSize }) {
   const groupRef = useRef(null)
   const pointsRef = useRef(null)
   const assemblyRef = useRef({ value: 0 })
@@ -497,7 +516,7 @@ function ParticleCloud({ isDraggingRef }) {
       <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
         <pointsMaterial
           vertexColors
-          size={0.015}
+          size={pointSize}
           sizeAttenuation
           transparent
           opacity={0.88}
@@ -514,12 +533,17 @@ function SceneRig() {
   const isDraggingRef = useRef(false)
   const returnTweenRef = useRef(null)
 
-  const { camera } = useThree()
+  const { camera, size } = useThree()
+  const restCameraZ = useMemo(
+    () => getRestCameraZ(size.width, size.height),
+    [size.width, size.height],
+  )
+  const pointSize = isMobilePortraitViewport(size.width, size.height) ? 0.021 : 0.015
 
   useEffect(() => {
-    camera.position.set(0, 0, CAMERA_Z)
+    camera.position.set(0, 0, restCameraZ)
     camera.lookAt(0, 0, 0)
-  }, [camera])
+  }, [camera, restCameraZ])
 
   useEffect(() => {
     const controls = controlsRef.current
@@ -556,7 +580,7 @@ function SceneRig() {
           {
             x: 0,
             y: 0,
-            z: CAMERA_Z,
+            z: restCameraZ,
             duration: 1.8,
             ease: 'elastic.out(1, 0.55)',
           },
@@ -583,7 +607,7 @@ function SceneRig() {
       controls.removeEventListener('end', onControlEnd)
       killReturnTween()
     }
-  }, [camera])
+  }, [camera, restCameraZ])
 
   useFrame(() => {
     controlsRef.current?.update()
@@ -591,7 +615,7 @@ function SceneRig() {
 
   return (
     <>
-      <ParticleCloud isDraggingRef={isDraggingRef} />
+      <ParticleCloud isDraggingRef={isDraggingRef} pointSize={pointSize} />
 
       <OrbitControls
         ref={controlsRef}
@@ -624,7 +648,7 @@ export default function SoundbankScene() {
     <Canvas
       className="h-full w-full"
       dpr={[1, 1.75]}
-      camera={{ fov: 48, near: 0.1, far: 120, position: [0, 0, CAMERA_Z] }}
+      camera={{ fov: CAMERA_FOV, near: 0.1, far: 120, position: [0, 0, DESKTOP_CAMERA_Z] }}
       gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
     >
       <color attach="background" args={['#000000']} />
