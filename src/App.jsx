@@ -9,7 +9,7 @@ function BackgroundNoiseLayer() {
   return (
     <svg
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+      className="pointer-events-none absolute inset-0 z-10 hidden h-full w-full md:block"
       preserveAspectRatio="none"
     >
       <defs>

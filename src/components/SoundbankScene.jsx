@@ -5,13 +5,27 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import gsap from 'gsap'
 import * as THREE from 'three'
 
-const PARTICLE_COUNT = 80000
 const ASSEMBLY_SECONDS = 2.5
 const LOGO_PATH = '/sb-logo.png'
 const CAMERA_FOV = 48
 const DESKTOP_CAMERA_Z = 7.4
 const MOBILE_VIEWPORT_MAX_WIDTH = 820
 const MOBILE_TARGET_WORLD_WIDTH = 9.6
+const DEFAULT_VIEWPORT = { width: 1440, height: 900 }
+const DESKTOP_QUALITY_PROFILE = {
+  particleCount: 80000,
+  pointSize: 0.015,
+  maxDpr: 1.75,
+  enablePointerInteraction: true,
+  enableBloom: true,
+}
+const MOBILE_QUALITY_PROFILE = {
+  particleCount: 30000,
+  pointSize: 0.019,
+  maxDpr: 1.1,
+  enablePointerInteraction: false,
+  enableBloom: false,
+}
 const AUTO_SPIN_SPEED = 0.055
 const TWO_PI = Math.PI * 2
 
@@ -32,6 +46,33 @@ const mixColor = (a, b, t) => [
 
 function isMobilePortraitViewport(width, height) {
   return width <= MOBILE_VIEWPORT_MAX_WIDTH && height > width
+}
+
+function hasCoarsePointer() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches
+}
+
+function getViewportSnapshot() {
+  if (typeof window === 'undefined') {
+    return DEFAULT_VIEWPORT
+  }
+
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }
+}
+
+function getQualityProfile(width, height) {
+  if (isMobilePortraitViewport(width, height) && hasCoarsePointer()) {
+    return MOBILE_QUALITY_PROFILE
+  }
+
+  return DESKTOP_QUALITY_PROFILE
 }
 
 function getRestCameraZ(width, height) {
@@ -290,6 +331,7 @@ function buildParticleData(maskData, particleCount) {
   }
 
   return {
+    count: particleCount,
     positions,
     starts,
     targets,
@@ -304,7 +346,7 @@ function buildParticleData(maskData, particleCount) {
   }
 }
 
-function ParticleCloud({ isDraggingRef, pointSize }) {
+function ParticleCloud({ isDraggingRef, particleCount, pointSize, enablePointerInteraction }) {
   const groupRef = useRef(null)
   const pointsRef = useRef(null)
   const assemblyRef = useRef({ value: 0 })
@@ -344,14 +386,14 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
           return
         }
 
-        setData(buildParticleData(maskPoints, PARTICLE_COUNT))
+        setData(buildParticleData(maskPoints, particleCount))
       } catch {
         if (!mounted) {
           return
         }
 
         const fallback = createFallbackMask()
-        setData(buildParticleData({ points: fallback, edgePoints: fallback }, PARTICLE_COUNT))
+        setData(buildParticleData({ points: fallback, edgePoints: fallback }, particleCount))
       }
     }
 
@@ -363,7 +405,7 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
       liveGeometryRef.current?.dispose()
       liveGeometryRef.current = null
     }
-  }, [])
+  }, [particleCount])
 
   useEffect(() => {
     if (!geometry) {
@@ -392,17 +434,25 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
     const elapsed = state.clock.elapsedTime
     const assemblyProgress = assemblyRef.current.value
 
-    pointerVector.set(state.pointer.x, state.pointer.y, 0.5).unproject(state.camera)
-    pointerDirection.copy(pointerVector).sub(state.camera.position).normalize()
+    const shouldUsePointerInteraction = enablePointerInteraction && assemblyProgress > 0.8
 
-    if (Math.abs(pointerDirection.z) > 1e-4) {
-      const distance = -state.camera.position.z / pointerDirection.z
-      mouseWorldRef.current.copy(state.camera.position).addScaledVector(pointerDirection, distance)
+    let mouseX = 0
+    let mouseY = 0
+    let mouseZ = 0
+
+    if (shouldUsePointerInteraction) {
+      pointerVector.set(state.pointer.x, state.pointer.y, 0.5).unproject(state.camera)
+      pointerDirection.copy(pointerVector).sub(state.camera.position).normalize()
+
+      if (Math.abs(pointerDirection.z) > 1e-4) {
+        const distance = -state.camera.position.z / pointerDirection.z
+        mouseWorldRef.current.copy(state.camera.position).addScaledVector(pointerDirection, distance)
+      }
+
+      mouseX = mouseWorldRef.current.x
+      mouseY = mouseWorldRef.current.y
+      mouseZ = mouseWorldRef.current.z
     }
-
-    const mouseX = mouseWorldRef.current.x
-    const mouseY = mouseWorldRef.current.y
-    const mouseZ = mouseWorldRef.current.z
 
     const {
       positions,
@@ -428,7 +478,7 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
     const spinAngle = spinAngleRef.current
     const mirrorSign = Math.cos(spinAngle) < 0 ? -1 : 1
 
-    for (let index = 0; index < PARTICLE_COUNT; index += 1) {
+    for (let index = 0; index < particleData.count; index += 1) {
       const positionIndex = index * 3
 
       const isCoreParticle = coreFlags[index] === 1
@@ -463,7 +513,7 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
         desiredY += chaos * 0.07
       }
 
-      if (assemblyProgress > 0.8) {
+      if (shouldUsePointerInteraction) {
         const interactionRadius = isCoreParticle ? 1.2 : 1.75
         const interactionRadiusSq = interactionRadius * interactionRadius
 
@@ -528,7 +578,7 @@ function ParticleCloud({ isDraggingRef, pointSize }) {
   )
 }
 
-function SceneRig() {
+function SceneRig({ quality }) {
   const controlsRef = useRef(null)
   const isDraggingRef = useRef(false)
   const returnTweenRef = useRef(null)
@@ -538,8 +588,6 @@ function SceneRig() {
     () => getRestCameraZ(size.width, size.height),
     [size.width, size.height],
   )
-  const pointSize = isMobilePortraitViewport(size.width, size.height) ? 0.021 : 0.015
-
   useEffect(() => {
     camera.position.set(0, 0, restCameraZ)
     camera.lookAt(0, 0, 0)
@@ -615,7 +663,12 @@ function SceneRig() {
 
   return (
     <>
-      <ParticleCloud isDraggingRef={isDraggingRef} pointSize={pointSize} />
+      <ParticleCloud
+        isDraggingRef={isDraggingRef}
+        particleCount={quality.particleCount}
+        pointSize={quality.pointSize}
+        enablePointerInteraction={quality.enablePointerInteraction}
+      />
 
       <OrbitControls
         ref={controlsRef}
@@ -630,29 +683,57 @@ function SceneRig() {
         maxPolarAngle={Math.PI / 2 + 0.5}
       />
 
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={0.16}
-          radius={0.95}
-          luminanceThreshold={0.02}
-          luminanceSmoothing={0.85}
-          mipmapBlur
-        />
-      </EffectComposer>
+      {quality.enableBloom && (
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={0.16}
+            radius={0.95}
+            luminanceThreshold={0.02}
+            luminanceSmoothing={0.85}
+            mipmapBlur
+          />
+        </EffectComposer>
+      )}
     </>
   )
 }
 
 export default function SoundbankScene() {
+  const [viewport, setViewport] = useState(getViewportSnapshot)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const updateViewport = () => {
+      setViewport(getViewportSnapshot())
+    }
+
+    window.addEventListener('resize', updateViewport, { passive: true })
+    window.addEventListener('orientationchange', updateViewport, { passive: true })
+    updateViewport()
+
+    return () => {
+      window.removeEventListener('resize', updateViewport)
+      window.removeEventListener('orientationchange', updateViewport)
+    }
+  }, [])
+
+  const quality = useMemo(
+    () => getQualityProfile(viewport.width, viewport.height),
+    [viewport.width, viewport.height],
+  )
+
   return (
     <Canvas
       className="h-full w-full"
-      dpr={[1, 1.75]}
+      dpr={[1, quality.maxDpr]}
       camera={{ fov: CAMERA_FOV, near: 0.1, far: 120, position: [0, 0, DESKTOP_CAMERA_Z] }}
       gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
     >
       <color attach="background" args={['#000000']} />
-      <SceneRig />
+      <SceneRig quality={quality} />
     </Canvas>
   )
 }
