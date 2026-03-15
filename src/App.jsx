@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import SoundbankScene from './components/SoundbankScene'
 
-const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/6oU4gyauE2YxgR964bgUM00'
+const STRIPE_CHECKOUT_URL = 'https://soundbank.waitset.com/'
 const QR_WHITE = '/qr/pCB238-white.png'
 
 function BackgroundNoiseLayer() {
